@@ -163,7 +163,10 @@ public class QuorumPeerMain {
         try {
             ServerMetrics.metricsProviderInitialized(metricsProvider);
             ProviderRegistry.initialize();
-            // 网络连接组件
+
+            // 网络连接组件，是一个很关键的组件
+            // 它会启动一个Sever，监听一个端口2181
+            // 让客户端跟它建立连接，发送请求
             ServerCnxnFactory cnxnFactory = null;
             ServerCnxnFactory secureCnxnFactory = null;
 

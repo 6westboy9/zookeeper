@@ -514,7 +514,7 @@ public class Leader extends LearnerMaster {
                 Socket socket = null;
                 boolean error = false;
                 try {
-                    socket = serverSocket.accept();
+                    socket = serverSocket.accept(); // 阻塞住
 
                     // start with the initLimit, once the ack is processed
                     // in LearnerHandler switch to the syncLimit
@@ -523,6 +523,8 @@ public class Leader extends LearnerMaster {
 
                     BufferedInputStream is = new BufferedInputStream(socket.getInputStream());
                     LearnerHandler fh = new LearnerHandler(socket, is, Leader.this);
+                    // 对于Leader而言，走的真是传统的BIO网络通信
+                    // 对于每个连接都创建一个独立的线程去服务于该连接的网络通信
                     fh.start();
                 } catch (SocketException e) {
                     error = true;
@@ -600,6 +602,7 @@ public class Leader extends LearnerMaster {
 
             // Start thread that waits for connection requests from
             // new followers.
+            // 专门监听接收来自Follower的连接请求，Learner=Follower
             cnxAcceptor = new LearnerCnxAcceptor();
             cnxAcceptor.start();
 

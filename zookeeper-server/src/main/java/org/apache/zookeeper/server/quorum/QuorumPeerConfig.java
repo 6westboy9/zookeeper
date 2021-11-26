@@ -67,53 +67,84 @@ public class QuorumPeerConfig {
     private static final int UNSET_SERVERID = -1;
     public static final String nextDynamicConfigFileSuffix = ".dynamic.next";
 
+    //
     private static boolean standaloneEnabled = true;
+    //
     private static boolean reconfigEnabled = false;
 
+    // 对于多网卡的机器，可以为每个IP指定不同的监听端口，默认情况是所有IP都监听clientPort拽定的端口
     protected InetSocketAddress clientPortAddress;
+    // SSL安全端口地址
     protected InetSocketAddress secureClientPortAddress;
+    // 集群间是否使用SSL通信
     protected boolean sslQuorum = false;
+    // 是否使用端口统一
     protected boolean shouldUsePortUnification = false;
     protected int observerMasterPort;
     protected boolean sslQuorumReloadCertFiles = false;
+    // 存储snapshot的目录，默认情况下，事务日志也会存储在这里
     protected File dataDir;
+    // 事务日志输出目录，尽量给事务日志的输出配置单独的磁盘或挂载点
     protected File dataLogDir;
     protected String dynamicConfigFileStr = null;
+    // 配置文件路径
     protected String configFileStr = null;
+    // 客户端会话检查间隔、服务端之间心跳间隔，zk基本上所有的时间都是这个时间的倍数，默认3s
     protected int tickTime = ZooKeeperServer.DEFAULT_TICK_TIME;
+    // 一个客户端能够连接到同一个服务器上的最大连接数，根据IP来区分，默认值为0，如果设置为0，表示没有任何限制，设置该值是为了防止Dos攻击
     protected int maxClientCnxns = 60;
     /** defaults to -1 if not set explicitly */
+    // 客户端的超时时间最小值，默认是2个tickTime
     protected int minSessionTimeout = -1;
     /** defaults to -1 if not set explicitly */
+    // 客户端的超时时间最大值，默认值是20个tickTime
     protected int maxSessionTimeout = -1;
+    // 监控处理类名
     protected String metricsProviderClassName = DefaultMetricsProvider.class.getName();
+    // 监控配置
     protected Properties metricsProviderConfiguration = new Properties();
+    // 启用本地会话
     protected boolean localSessionsEnabled = false;
+    // 本地会话可以升级成全局会话
     protected boolean localSessionsUpgradingEnabled = false;
     /** defaults to -1 if not set explicitly */
+    // TCP服务端用于临时存放已完成三次握手的请求的队列的最大长度
     protected int clientPortListenBacklog = -1;
 
+    // tickTime * initLimit，决定了ack的超时时间
     protected int initLimit;
+    // tickTime * syncLimit，决定了服务端心跳超时时间
     protected int syncLimit;
+    // 决定了Follower连接Leader的超时时间
     protected int connectToLearnerMasterLimit;
+    // 选举算法（1，2 已被废弃）
     protected int electionAlg = 3;
+    // 选举Leader所使用的端口
     protected int electionPort = 2182;
+    // 服务端是否接受来自任意IP地址的请求
     protected boolean quorumListenOnAllIPs = false;
-
+    // 服务id
     protected long serverId = UNSET_SERVERID;
 
+    // 验证器
     protected QuorumVerifier quorumVerifier = null, lastSeenQuorumVerifier = null;
+    // 保留多少个最新的snapshot文件
     protected int snapRetainCount = 3;
+    // 间隔多久进行一次snapshot的清理，单位：小时
     protected int purgeInterval = 0;
+    // Observer是否需要本地归档
     protected boolean syncEnabled = true;
 
+    // 初始化配置
     protected String initialConfig;
 
+    // 学习类型（参与者或者观察者）
     protected LearnerType peerType = LearnerType.PARTICIPANT;
 
     /**
      * Configurations for the quorumpeer-to-quorumpeer sasl authentication
      */
+    // 各个角色认证相关配置
     protected boolean quorumServerRequireSasl = false;
     protected boolean quorumLearnerRequireSasl = false;
     protected boolean quorumEnableSasl = false;
@@ -122,6 +153,7 @@ public class QuorumPeerConfig {
     protected String quorumServerLoginContext = QuorumAuth.QUORUM_SERVER_SASL_LOGIN_CONTEXT_DFAULT_VALUE;
     protected int quorumCnxnThreadsSize;
 
+    // 多地址相关配置
     // multi address related configs
     private boolean multiAddressEnabled = Boolean.parseBoolean(
         System.getProperty(QuorumPeer.CONFIG_KEY_MULTI_ADDRESS_ENABLED, QuorumPeer.CONFIG_DEFAULT_MULTI_ADDRESS_ENABLED));
@@ -137,6 +169,7 @@ public class QuorumPeerConfig {
      * Minimum snapshot retain count.
      * @see org.apache.zookeeper.server.PurgeTxnLog#purge(File, File, int)
      */
+    // 最小快照保留计数
     private final int MIN_SNAP_RETAIN_COUNT = 3;
 
     /**

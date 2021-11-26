@@ -197,6 +197,9 @@ public class WorkerService {
 
     public void start() {
         if (numWorkerThreads > 0) {
+            // threadsAreAssignable作用，集群启动时默认threadsAreAssignable为false
+            // 多个worker：一个worker对应一个thread
+            // 一个worker：一个worker对应多个thread
             if (threadsAreAssignable) {
                 for (int i = 1; i <= numWorkerThreads; ++i) {
                     workers.add(Executors.newFixedThreadPool(1, new DaemonThreadFactory(threadNamePrefix, i)));

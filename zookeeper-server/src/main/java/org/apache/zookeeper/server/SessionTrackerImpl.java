@@ -195,6 +195,14 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
 
     private void updateSessionExpiry(SessionImpl s, int timeout) {
         logTraceTouchSession(s.sessionId, timeout, "");
+
+        // 底层的分桶原理
+
+        // 不同的session，它们原始的now+timeout，都是不一样的
+        // 但是经过处理之后，其实就可能很多session的expireTime是一样的
+
+        // expireTime(12:05) : SessionSet(<会话1>, <会话2>, <会话3>)
+        // expireTime(12:10) : SessionSet(<会话4>, <会话5>, <会话6>)
         sessionExpiryQueue.update(s, timeout);
     }
 
@@ -259,6 +267,10 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
     }
 
     public long createSession(int sessionTimeout) {
+        // 步骤一：生成一个唯一的sessionId
+        // 步骤二：在几个内存数据结构中放入session
+        // 步骤三：对session计算它的过期时间以及进行特殊的处理
+
         long sessionId = nextSessionId.getAndIncrement();
         trackSession(sessionId, sessionTimeout);
         return sessionId;

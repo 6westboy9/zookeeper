@@ -427,11 +427,14 @@ public class ClientCnxn {
         this.sessionPasswd = sessionPasswd;
         this.readOnly = canBeReadOnly;
 
+        // 监听器管理组件
         this.watchManager = new ZKWatchManager(
                 clientConfig.getBoolean(ZKClientConfig.DISABLE_AUTO_WATCH_RESET),
                 defaultWatcher);
 
+        // 连接超时时间
         this.connectTimeout = sessionTimeout / hostProvider.size();
+        // 读取超时时间
         this.readTimeout = sessionTimeout * 2 / 3;
 
         this.sendThread = new SendThread(clientCnxnSocket);
@@ -546,6 +549,8 @@ public class ClientCnxn {
             try {
                 isRunning = true;
                 while (true) {
+                    // 主要就是去接收zk服务端反向推送过来的event事件
+                    // 然后负责回调监听事件的watcher
                     Object event = waitingEvents.take();
                     if (event == eventOfDeath) {
                         wasKilled = true;
@@ -1072,6 +1077,8 @@ public class ClientCnxn {
                                     childWatchesBatch, persistentWatchesBatch, persistentRecursiveWatchesBatch);
                             opcode = OpCode.setWatches2;
                         }
+
+                        // 封装一个ConnectRequest，放入Packet Queue里面去了
                         RequestHeader header = new RequestHeader(ClientCnxn.SET_WATCHES_XID, opcode);
                         Packet packet = new Packet(header, new ReplyHeader(), record, null, null);
                         outgoingQueue.addFirst(packet);
@@ -1088,7 +1095,11 @@ public class ClientCnxn {
                         null,
                         null));
             }
+
+            // 封装一个ConnectRequest，放入Packet Queue里面去了
             outgoingQueue.addFirst(new Packet(null, null, conReq, null, null, readOnly));
+
+            // 仅仅关注读写请求
             clientCnxnSocket.connectionPrimed();
             LOG.debug("Session establishment request sent on {}", clientCnxnSocket.getRemoteSocketAddress());
         }
@@ -1194,9 +1205,12 @@ public class ClientCnxn {
                             serverAddress = rwServerAddress;
                             rwServerAddress = null;
                         } else {
+                            // 随机获取地址
+                            // hostProvider其实是把打乱的机器列表做成一个环形，每次都会尝试从第一个获取
                             serverAddress = hostProvider.next(1000);
                         }
                         onConnecting(serverAddress);
+                        // 建立连接
                         startConnect(serverAddress);
                         // Update now to start the connection timer right after we make a connection attempt
                         clientCnxnSocket.updateNow();
@@ -1252,11 +1266,15 @@ public class ClientCnxn {
                     if (state.isConnected()) {
                         //1000(1 second) is to prevent race condition missing to send the second ping
                         //also make sure not to send too many pings when readTimeout is small
+
+                        // getIdleSend表示已经有多长时间没有发送消息到服务端去了
+
                         int timeToNextPing = readTimeout / 2
                                              - clientCnxnSocket.getIdleSend()
                                              - ((clientCnxnSocket.getIdleSend() > 1000) ? 1000 : 0);
                         //send a ping request either time is due or no packet sent out within MAX_SEND_PING_INTERVAL
                         if (timeToNextPing <= 0 || clientCnxnSocket.getIdleSend() > MAX_SEND_PING_INTERVAL) {
+                            // 发送心跳
                             sendPing();
                             clientCnxnSocket.updateLastSend();
                         } else {
@@ -1279,6 +1297,7 @@ public class ClientCnxn {
                         to = Math.min(to, pingRwTimeout - idlePingRwServer);
                     }
 
+                    // 处理网络传输
                     clientCnxnSocket.doTransport(to, pendingQueue, ClientCnxn.this);
                 } catch (Throwable e) {
                     if (closing) {

@@ -1129,9 +1129,12 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
         if (!getView().containsKey(myid)) {
             throw new RuntimeException("My id " + myid + " not in the peer list");
         }
+        // 加载服务器数据库
         loadDataBase();
+        // 开启网络通信组件
         startServerCnxnFactory();
         try {
+            // 如果配置了zookeeper.admin.enableServer=true时，默认会开启基于Jetty的管理后台
             adminServer.start();
         } catch (AdminServerException e) {
             LOG.warn("Problem starting AdminServer", e);
@@ -1364,6 +1367,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
             QuorumCnxManager qcm = createCnxnManager();
             QuorumCnxManager oldQcm = qcmRef.getAndSet(qcm);
             if (oldQcm != null) {
+                // 破坏已经设置的QuorumCnxManager（重新启动Leader选举？）
                 LOG.warn("Clobbering already-set QuorumCnxManager (restarting leader election?)");
                 oldQcm.halt();
             }
@@ -1460,14 +1464,14 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
 
                 switch (getPeerState()) {
                 // 如果说当前你是刚刚才启动的话
-                // 你的装填都是LOOKING，在寻找Leader的过程中
+                // 你的状态都是LOOKING，在寻找Leader的过程中
                 // 如果说没有Leader，此时你就要发起投票给其他所有人尝试去选举Leader
                 // 如果已经有了一个Leader，此时你就要让自己作为Follower
                 case LOOKING:
                     LOG.info("LOOKING");
                     ServerMetrics.getMetrics().LOOKING_COUNT.add(1);
 
-                    // 配置的只读模式
+                    // 配置的只读模式，意思是在Leader选举过程中只能读不能写
                     if (Boolean.getBoolean("readonlymode.enabled")) {
                         LOG.info("Attempting to start ReadOnlyZooKeeperServer");
 
@@ -1502,7 +1506,13 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                                 shuttingDownLE = false;
                                 startLeaderElection();
                             }
-                            setCurrentVote(makeLEStrategy().lookForLeader());
+
+                            // makeLEStrategy()该方法作用为获取到选举策略
+                            // 选举策略在启动时，通过createElectionAlgorithm(electionType)方法已经创建
+                            // 即FastLeaderElection选举算法
+
+                            // lookForLeader()该方法作用是查找Leader
+                            setCurrentVote(makeLEStrategy().lookForLeader()); // 1.1
                         } catch (Exception e) {
                             LOG.warn("Unexpected exception", e);
                             setPeerState(ServerState.LOOKING);
@@ -1513,14 +1523,15 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                             roZk.shutdown();
                         }
                     } else {
+                        // 非只读模式下
                         try {
                             reconfigFlagClear();
                             if (shuttingDownLE) {
                                 shuttingDownLE = false;
                                 startLeaderElection();
                             }
-                            //
-                            setCurrentVote(makeLEStrategy().lookForLeader());
+                            // 同上1.1，设置自己的投票
+                            setCurrentVote(makeLEStrategy().lookForLeader()); // 1.2
                         } catch (Exception e) {
                             LOG.warn("Unexpected exception", e);
                             setPeerState(ServerState.LOOKING);

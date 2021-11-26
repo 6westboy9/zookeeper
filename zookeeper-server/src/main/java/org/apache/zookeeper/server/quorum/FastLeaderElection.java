@@ -535,11 +535,13 @@ public class FastLeaderElection implements Election {
 
             this.ws = new WorkerSender(manager);
 
+            // 请求发送线程
             this.wsThread = new Thread(this.ws, "WorkerSender[myid=" + self.getId() + "]");
             this.wsThread.setDaemon(true);
 
             this.wr = new WorkerReceiver(manager);
 
+            // 响应接收接收
             this.wrThread = new Thread(this.wr, "WorkerReceiver[myid=" + self.getId() + "]");
             this.wrThread.setDaemon(true);
         }
@@ -689,15 +691,16 @@ public class FastLeaderElection implements Election {
      * Send notifications to all peers upon a change in our vote
      */
     private void sendNotifications() {
+        // 对其它节点都会发送投票请求
         for (long sid : self.getCurrentAndNextConfigVoters()) {
             QuorumVerifier qv = self.getQuorumVerifier();
             ToSend notmsg = new ToSend(
                 ToSend.mType.notification,
-                proposedLeader,
-                proposedZxid,
-                logicalclock.get(),
-                QuorumPeer.ServerState.LOOKING,
-                sid,
+                proposedLeader, // 表示当前节点提议自己为Leader
+                proposedZxid,   // 当前节点的Zxid
+                logicalclock.get(), // 投票的周期号，表示几轮投票
+                QuorumPeer.ServerState.LOOKING, // 当前节点状态
+                sid, //
                 proposedEpoch,
                 qv.toString().getBytes(UTF_8));
 
@@ -711,6 +714,7 @@ public class FastLeaderElection implements Election {
                 self.getId(),
                 Long.toHexString(proposedEpoch));
 
+            // 放置到sendqueue队列中去
             sendqueue.offer(notmsg);
         }
     }
@@ -853,6 +857,10 @@ public class FastLeaderElection implements Election {
      * @return long
      */
     private long getInitId() {
+        // 就是检查当前QuorumPeer节点的id是否在配置中，是的话就取当前节点id，不是就会取最小值
+        // server.1=192.168.10.31:2888:3888
+        // server.2=192.168.10.32:2888:3888
+        // server.3=192.168.10.33:2888:3888
         if (self.getQuorumVerifier().getVotingMembers().containsKey(self.getId())) {
             return self.getId();
         } else {
@@ -947,6 +955,8 @@ public class FastLeaderElection implements Election {
                 "New election. My id = {}, proposed zxid=0x{}",
                 self.getId(),
                 Long.toHexString(proposedZxid));
+
+            // 发起自己的投票给其它节点，通过QuorumCnxManager组件
             sendNotifications();
 
             SyncedLearnerTracker voteSet = null;
@@ -960,6 +970,8 @@ public class FastLeaderElection implements Election {
                  * Remove next notification from queue, times out after 2 times
                  * the termination time
                  */
+
+                // 不停的接收来自其它节点的投票数据
                 Notification n = recvqueue.poll(notTimeout, TimeUnit.MILLISECONDS);
 
                 /*
@@ -984,6 +996,9 @@ public class FastLeaderElection implements Election {
                      *
                      * The leader election algorithm does not provide the ability of electing a leader from a single instance
                      * which is in a configuration of 2 instances.
+                     * 谷歌翻译：领导者选举算法不提供从2个实例配置的单个实例选举领导者的能力
+                     * 个人猜测：意思是说如果某个实例配置的集群节点为2个，那么是不会选举出Leader的
+                     *
                      * */
                     if (self.getQuorumVerifier() instanceof QuorumOracleMaj
                             && self.getQuorumVerifier().revalidateVoteset(voteSet, notTimeout != minNotificationInterval)) {
@@ -1010,6 +1025,9 @@ public class FastLeaderElection implements Election {
                             LOG.debug("Ignoring notification from member with -1 zxid {}", n.sid);
                             break;
                         }
+
+                        // ---- 核心选举逻辑 ----
+
                         // If notification > current, replace and send messages out
                         if (n.electionEpoch > logicalclock.get()) {
                             logicalclock.set(n.electionEpoch);

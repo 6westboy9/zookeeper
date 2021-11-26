@@ -142,6 +142,7 @@ public final class StaticHostProvider implements HostProvider {
             if (resolvedAddresses.isEmpty()) {
                 return address;
             }
+            // 随机打乱
             Collections.shuffle(resolvedAddresses);
             return new InetSocketAddress(resolvedAddresses.get(0), address.getPort());
         } catch (UnknownHostException e) {

@@ -85,6 +85,10 @@ public class QuorumMaj implements QuorumVerifier {
         half = votingMembers.size() / 2;
     }
 
+    // 集群地址配置
+    // server.1=192.168.10.31:2888:3888
+    // server.2=192.168.10.32:2888:3888
+    // server.3=192.168.10.33:2888:3888
     public QuorumMaj(Properties props) throws ConfigException {
         for (Entry<Object, Object> entry : props.entrySet()) {
             String key = entry.getKey().toString();

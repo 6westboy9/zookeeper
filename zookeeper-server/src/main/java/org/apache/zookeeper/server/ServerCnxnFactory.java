@@ -61,6 +61,10 @@ public abstract class ServerCnxnFactory {
 
     private static String loginUser = Login.SYSTEM_USER;
 
+    // Construct a ConcurrentHashSet using a ConcurrentHashMap
+    protected final Set<ServerCnxn> cnxns = Collections.newSetFromMap(new ConcurrentHashMap<ServerCnxn, Boolean>());
+    private final ConcurrentHashMap<ServerCnxn, ConnectionBean> connectionBeans = new ConcurrentHashMap<ServerCnxn, ConnectionBean>();
+
     public void addSession(long sessionId, ServerCnxn cnxn) {
         sessionMap.put(sessionId, cnxn);
     }
@@ -144,6 +148,7 @@ public abstract class ServerCnxnFactory {
     public abstract void start();
 
     protected ZooKeeperServer zkServer;
+
     public final void setZooKeeperServer(ZooKeeperServer zks) {
         this.zkServer = zks;
         if (zks != null) {
@@ -162,10 +167,17 @@ public abstract class ServerCnxnFactory {
         if (serverCnxnFactoryName == null) {
             serverCnxnFactoryName = NIOServerCnxnFactory.class.getName();
         }
+
+        // 思路
+        // 在zk服务器之间进行网络通信走的是最简单的BIO架构
+        // 但是如果面临海量的客户端建立长连接，各个客户端跟zk服务器之间都是建立长连接，那么BIO肯定
+        // 是不行的，一个连接一个线程，没法支撑单机几万几十万的长连接，此时必须基于NIO或者Netty来开发Sever，支持大量连接
+        //
+
         try {
             ServerCnxnFactory serverCnxnFactory = (ServerCnxnFactory) Class.forName(serverCnxnFactoryName)
-                                                                           .getDeclaredConstructor()
-                                                                           .newInstance();
+                    .getDeclaredConstructor()
+                    .newInstance();
             LOG.info("Using {} as server connection factory", serverCnxnFactoryName);
             return serverCnxnFactory;
         } catch (Exception e) {
@@ -192,17 +204,14 @@ public abstract class ServerCnxnFactory {
         return factory;
     }
 
+
+
     public abstract InetSocketAddress getLocalAddress();
 
     public abstract void resetAllConnectionStats();
 
     public abstract Iterable<Map<String, Object>> getAllConnectionInfo(boolean brief);
 
-    private final ConcurrentHashMap<ServerCnxn, ConnectionBean> connectionBeans = new ConcurrentHashMap<ServerCnxn, ConnectionBean>();
-
-    // Connection set is relied on heavily by four letter commands
-    // Construct a ConcurrentHashSet using a ConcurrentHashMap
-    protected final Set<ServerCnxn> cnxns = Collections.newSetFromMap(new ConcurrentHashMap<ServerCnxn, Boolean>());
     public void unregisterConnection(ServerCnxn serverCnxn) {
         ConnectionBean jmxConnectionBean = connectionBeans.remove(serverCnxn);
         if (jmxConnectionBean != null) {
@@ -305,6 +314,7 @@ public abstract class ServerCnxnFactory {
             maxCnxns = ZOOKEEPER_MAX_CONNECTION_DEFAULT;
             LOG.warn("maxCnxns should be greater than or equal to 0, using default vlaue {}.",
                     ZOOKEEPER_MAX_CONNECTION_DEFAULT);
+
         } else if (maxCnxns == ZOOKEEPER_MAX_CONNECTION_DEFAULT) {
             LOG.warn("maxCnxns is not configured, using default value {}.",
                     ZOOKEEPER_MAX_CONNECTION_DEFAULT);

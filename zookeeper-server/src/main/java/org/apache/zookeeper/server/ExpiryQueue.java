@@ -51,6 +51,18 @@ public class ExpiryQueue<E> {
     }
 
     private long roundToNextInterval(long time) {
+        // expirationInterval，它是用来后续在后台线程里面每隔这么多时间检查session是否过期的
+        // 默认是跟tickTime是一样大的，默认2000ms
+
+        // 下面公式的含义是啥呢？举例
+        // (2 / 2 + 1) * 2 = 4
+        // (3 / 2 + 1) * 2 = 4
+        // (4 / 2 + 1) * 2 = 6
+        // (5 / 2 + 1) * 2 = 6
+        // (6 / 2 + 1) * 2 = 8
+        // (7 / 2 + 1) * 2 = 8
+
+        // 让expireTime，过期时间，应该是expirationInterval的倍数
         return (time / expirationInterval + 1) * expirationInterval;
     }
 

@@ -189,6 +189,7 @@ public class Learner {
      * @throws IOException
      */
     void writePacket(QuorumPacket pp, boolean flush) throws IOException {
+        // 支持异步与同步
         if (asyncSending) {
             sender.queuePacket(pp);
         } else {
@@ -200,6 +201,15 @@ public class Learner {
         synchronized (leaderOs) {
             if (pp != null) {
                 messageTracker.trackSent(pp.getType());
+
+                /*
+                 * 对于Jute而言，它的分隔符其实就是开始tag和结束tag
+                 * packet int long buffer packet
+                 * 解析的时候就会按照这个固定格式进行解析，保证每次都是解析出来一个完整的数据包
+                 * 不会出现粘包和拆包的问题
+                 *
+                 */
+
                 leaderOs.writeRecord(pp, "packet");
             }
             if (flush) {
@@ -353,6 +363,7 @@ public class Learner {
 
         self.authLearner.authenticate(sock, hostname);
 
+        // Jute序列化组件：BinaryInputArchive和BinaryOutputArchive
         leaderIs = BinaryInputArchive.getArchive(new BufferedInputStream(sock.getInputStream()));
         bufferedOutput = new BufferedOutputStream(sock.getOutputStream());
         leaderOs = BinaryOutputArchive.getArchive(bufferedOutput);
@@ -489,8 +500,8 @@ public class Learner {
          */
         long lastLoggedZxid = self.getLastLoggedZxid();
         QuorumPacket qp = new QuorumPacket();
-        qp.setType(pktType);
-        qp.setZxid(ZxidUtils.makeZxid(self.getAcceptedEpoch(), 0));
+        qp.setType(pktType); // Follower自己的包类型
+        qp.setZxid(ZxidUtils.makeZxid(self.getAcceptedEpoch(), 0)); // 当前最大的一个Zxid
 
         /*
          * Add sid to payload
@@ -499,7 +510,7 @@ public class Learner {
         ByteArrayOutputStream bsid = new ByteArrayOutputStream();
         BinaryOutputArchive boa = BinaryOutputArchive.getArchive(bsid);
         boa.writeRecord(li, "LearnerInfo");
-        qp.setData(bsid.toByteArray());
+        qp.setData(bsid.toByteArray()); // 将LeaderInfo对象数据序列化成字节数组
 
         writePacket(qp, true);
         readPacket(qp);

@@ -70,6 +70,8 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         if (sock == null) {
             throw new IOException("Socket is null!");
         }
+
+        // 表明有数据可以读取，一般来说你发送出去的请求的响应，或者是zk服务端反向推送的事件通知
         if (sockKey.isReadable()) {
             int rc = sock.read(incomingBuffer);
             if (rc < 0) {
@@ -102,7 +104,10 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                 }
             }
         }
+
+        // 如果当前的网络连接是可以写的
         if (sockKey.isWritable()) {
+            // 从队列中获取一个Packet，这里并没有从队列头部删除掉
             Packet p = findSendablePacket(outgoingQueue, sendThread.tunnelAuthInProgress());
 
             if (p != null) {
@@ -116,14 +121,18 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                     }
                     p.createBB();
                 }
+                // 把这个Packet的数据采用ByteBuffer的模式通过socket写出去
                 sock.write(p.bb);
+                // 这块代码是处理拆包的，因为发送数据的时候，有可能一次性没有发送完成
                 if (!p.bb.hasRemaining()) {
                     sentCount.getAndIncrement();
+                    // 数据写完之后，把它从队列头部删除掉
                     outgoingQueue.removeFirstOccurrence(p);
                     if (p.requestHeader != null
                         && p.requestHeader.getType() != OpCode.ping
                         && p.requestHeader.getType() != OpCode.auth) {
                         synchronized (pendingQueue) {
+                            // 因为此时需要等待这个请求的响应，放置到pendingQueue队列中
                             pendingQueue.add(p);
                         }
                     }
@@ -135,6 +144,9 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                 // from within ZooKeeperSaslClient (if client is configured
                 // to attempt SASL authentication), or in either doIO() or
                 // in doTransport() if not.
+
+                // 如果发现你的outgoingQueue是空的，此时就取消对socket的OP_WRITE是事件的关注
+                // 避免你频繁的发现socket可以执行OP_WRITE，然后代码进到这里，但是没有数据可以写的
                 disableWrite();
             } else if (!initialized && p != null && !p.bb.hasRemaining()) {
                 // On initial connection, write the complete connect request
@@ -241,6 +253,17 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
      * @throws IOException
      */
     SocketChannel createSock() throws IOException {
+        // 生产级的网络通信代码，也不过如此
+        // 即使你使用netty，主要是做了大量的封装，提供更多的功能
+        // 对一些潜在的网络问题，做了很多的处理
+
+        // 无论Kafka还是ZooKeeper，世界顶级知名的开源分布式中间件系统
+        // 网络通信的代码其实很简单，没有想的那么困难
+        // 分布式中间件系统，分布式架构设计，peers、master-slave
+        // 面向对象 + 内存（各种数据结构，各种集合类）+ 并发编程 + 代码逻辑 = 中间件系统里的核心代码
+        // 网络通信（集群间通信、客户端与服务端的通信），磁盘IO（OS Cache，flush）
+        // 就是不同的分布式系统，它自己是有不同的架构、机制在里边的，用来解决不同场景的问题
+
         SocketChannel sock;
         sock = SocketChannel.open();
         sock.configureBlocking(false);
@@ -347,6 +370,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                     sendThread.primeConnection();
                 }
             } else if ((k.readyOps() & (SelectionKey.OP_READ | SelectionKey.OP_WRITE)) != 0) {
+                // 处理底层网络IO
                 doIO(pendingQueue, cnxn);
             }
         }

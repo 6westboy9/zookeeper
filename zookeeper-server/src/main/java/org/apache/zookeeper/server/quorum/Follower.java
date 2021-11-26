@@ -86,8 +86,11 @@ public class Follower extends Learner {
             self.setZabState(QuorumPeer.ZabState.DISCOVERY);
             QuorumServer leaderServer = findLeader();
             try {
+                // 连接Leader
                 connectToLeader(leaderServer.addr, leaderServer.hostname);
                 connectionTime = System.currentTimeMillis();
+
+                // 完成连接建立之后，向Leader进行注册
                 long newEpochZxid = registerWithLeader(Leader.FOLLOWERINFO);
                 if (self.isReconfigStateChange()) {
                     throw new Exception("learned about role change");
@@ -105,6 +108,8 @@ public class Follower extends Learner {
                 long startTime = Time.currentElapsedTime();
                 self.setLeaderAddressAndId(leaderServer.addr, leaderServer.getId());
                 self.setZabState(QuorumPeer.ZabState.SYNCHRONIZATION);
+
+                // 直接跟Leader进行数据同步
                 syncWithLeader(newEpochZxid);
                 self.setZabState(QuorumPeer.ZabState.BROADCAST);
                 completedSync = true;
@@ -119,8 +124,10 @@ public class Follower extends Learner {
                     om = null;
                 }
                 // create a reusable packet to reduce gc impact
+                // 集群启动的磁盘数据恢复、Leader->Follower的数据同步、Leader重新选举之后的数据同步
                 QuorumPacket qp = new QuorumPacket();
                 while (this.isRunning()) {
+                    // 不停地从Leader那儿接收同步过来的数据，对数据进行处理
                     readPacket(qp);
                     processPacket(qp);
                 }

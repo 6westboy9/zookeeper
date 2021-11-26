@@ -468,6 +468,22 @@ public class LearnerHandler extends ZooKeeperThread {
             bufferedOutput = new BufferedOutputStream(sock.getOutputStream());
             oa = BinaryOutputArchive.getArchive(bufferedOutput);
 
+            /*
+             * Jute的序列化使用Demo
+             * 假设：Leader发送一个对象到Follower
+             * 类的对象中包含几个字段：name、age、score
+             *
+             * String name = "leo";
+             * int age = 18;
+             * float score = 90.5f;
+             *
+             * oa.writeString(name, "name");
+             * oa.writeInt(age, "age");
+             * oa.writeFloat(score, "score");
+             *
+             */
+
+            // 从Follower读取数据
             QuorumPacket qp = new QuorumPacket();
             ia.readRecord(qp, "packet");
 
@@ -606,6 +622,8 @@ public class LearnerHandler extends ZooKeeperThread {
             bufferedOutput.flush();
 
             // Start thread that blast packets in the queue to learner
+
+            // 启动线程将队列中的数据包发送给Follower
             startSendingPackets();
 
             /*
@@ -613,6 +631,8 @@ public class LearnerHandler extends ZooKeeperThread {
              * the learnerMaster is ready, and only then we can
              * start processing messages.
              */
+
+            //
             qp = new QuorumPacket();
             ia.readRecord(qp, "packet");
 
@@ -651,6 +671,7 @@ public class LearnerHandler extends ZooKeeperThread {
             LOG.debug("Sending UPTODATE message to {}", sid);
             queuedPackets.add(new QuorumPacket(Leader.UPTODATE, -1, null, null));
 
+            // Leader
             while (true) {
                 qp = new QuorumPacket();
                 ia.readRecord(qp, "packet");

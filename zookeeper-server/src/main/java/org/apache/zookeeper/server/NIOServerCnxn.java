@@ -173,7 +173,13 @@ public class NIOServerCnxn extends ServerCnxn {
 
     /** Read the request payload (everything following the length prefix) */
     private void readPayload() throws IOException, InterruptedException, ClientCnxnLimitException {
+
+        // 对于一个连接，只有一个incomingBuffer
+        // 如果对这个连接的请求出现拆包，没有读取完毕
+        // 那么此时就应该要下次OP_READ的时候继续读取，继续读取到incomingBuffer中去
+
         if (incomingBuffer.remaining() != 0) { // have we read length bytes?
+            // 尝试从socket中读取数据到incomingBuffer中去
             int rc = sock.read(incomingBuffer); // sock is non-blocking, so ok
             if (rc < 0) {
                 handleFailedRead();
@@ -181,10 +187,10 @@ public class NIOServerCnxn extends ServerCnxn {
         }
 
         if (incomingBuffer.remaining() == 0) { // have we read length bytes?
-            incomingBuffer.flip();
-            packetReceived(4 + incomingBuffer.remaining());
+            incomingBuffer.flip(); // 把它的开始读取的offset调整为0，最多读取的位置调整为之前读取到的那个offset
+            packetReceived(4 + incomingBuffer.remaining()); // 读取完毕了，就可以对这个请求进行处理了
             if (!initialized) {
-                readConnectRequest();
+                readConnectRequest(); // 还没有完成session初始化，一定读取到的是ConnectRequest
             } else {
                 readRequest();
             }
@@ -327,22 +333,26 @@ public class NIOServerCnxn extends ServerCnxn {
 
                 return;
             }
+
+            // 读取数据
             if (k.isReadable()) {
                 int rc = sock.read(incomingBuffer);
                 if (rc < 0) {
                     handleFailedRead();
                 }
-                if (incomingBuffer.remaining() == 0) {
+
+                if (incomingBuffer.remaining() == 0) { // 如果读取到了4个字节
                     boolean isPayload;
                     if (incomingBuffer == lenBuffer) { // start of next request
-                        incomingBuffer.flip();
-                        isPayload = readLength(k);
+                        incomingBuffer.flip(); // 我先读取当前这个请求的长度
+                        isPayload = readLength(k); // 根据读取的长度创建一个ByteBuffer
                         incomingBuffer.clear();
                     } else {
                         // continuation
                         isPayload = true;
                     }
                     if (isPayload) { // not the case for 4letterword
+                        // 正式从socket读取对应的请求数据
                         readPayload();
                     } else {
                         // four letter words take care
@@ -555,6 +565,7 @@ public class NIOServerCnxn extends ServerCnxn {
         }
         // checkRequestSize will throw IOException if request is rejected
         zkServer.checkRequestSizeWhenReceivingMessage(len);
+        // 根据读取的长度创建一个ByteBuffer
         incomingBuffer = ByteBuffer.allocate(len);
         return true;
     }

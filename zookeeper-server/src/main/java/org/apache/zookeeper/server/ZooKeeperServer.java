@@ -998,6 +998,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             // Possible since it's just deserialized from a packet on the wire.
             passwd = new byte[0];
         }
+        // 基于SessionTracker的一个组件创建了一个Session出来
         long sessionId = sessionTracker.createSession(timeout);
         Random r = new Random(sessionId ^ superSecret);
         r.nextBytes(passwd);
@@ -1161,6 +1162,14 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             }
         }
         try {
+
+            // 不管是ping还是别的任何请求，最后都会来执行submitRequest
+            // 但凡执行这个操作之后，其实它都会执行以下touch
+            // 这个touch一旦执行，都会更新服务端的session的过期时间
+            // 12:05
+            // 12:04 + 120s = 12:06，进行处理expireTime，做成expirationInterval的倍数
+            // 重新分桶
+
             touch(si.cnxn);
             boolean validpacket = Request.isValid(si.type);
             if (validpacket) {
@@ -1441,6 +1450,9 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         // session is setup
         cnxn.disableRecv();
         if (sessionId == 0) {
+            // 创建一个session，一开始sessionId一定是0
+            // session是有服务端开启的，客户端仅仅是发送connectRequest过去而已
+            // 构造一个跟客户端之间的session出来
             long id = createSession(cnxn, passwd, sessionTimeout);
             LOG.debug(
                 "Client attempting to establish new session: session = 0x{}, zxid = 0x{}, timeout = {}, address = {}",

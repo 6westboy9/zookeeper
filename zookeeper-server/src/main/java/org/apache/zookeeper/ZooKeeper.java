@@ -445,6 +445,9 @@ public class ZooKeeper implements AutoCloseable {
      *             if an invalid chroot path is specified
      */
     public ZooKeeper(String connectString, int sessionTimeout, Watcher watcher) throws IOException {
+        // connectString里会传递进来所有zk服务器的地址
+        // sessionTimeout，一旦建立了一个长连接，就会建立一个session
+        // 但是如果你跟zk服务端超过一定时间不通信，会话就会过期
         this(connectString, sessionTimeout, watcher, false);
     }
 
@@ -642,9 +645,29 @@ public class ZooKeeper implements AutoCloseable {
 
         this.clientConfig = clientConfig != null ? clientConfig : new ZKClientConfig();
         this.hostProvider = hostProvider;
+
+        // 解析zk机器列表
+        // 封装成一个HostProvider组件，就是每次你连接一个zk服务器
+        // 随机地提供一个机器地址给你
+
+        // 你的zk集群中有3台机器，1个Leader，2个Follower
+        // 比如你有1万个客户端要连接，此时可能3000个客户端连接Leader，3000个客户端连接Follower
+        // 还有3000个客户端连接最后一个Follower
+
+        // 如果你要是写入数据，Follower会把请求转发给Leader的，为了保证顺序一致性，必须是让所有请求都是在Leader上执行的
+        // Leader可以保证所有的请求都是有序的
         ConnectStringParser connectStringParser = new ConnectStringParser(connectString);
 
+        // ClientCnxn对象cnxn核心组件
+        // 这个组件的主要任务就是跟zk服务端进行通信
         cnxn = createConnection(
+            // connectString地址可以跟路径，ChrootPath就是该路径地址的根路径
+            // 比如connectString是192.168.1.1:2181,192.168.1.2:2181,192.168.1.3:2181/data/crm
+            // 后续所有的znode操作，都是在你指定的chroot路径下执行的
+            // 比如set /field 1
+            // 比如set /data/crm/field 1
+            // 这个东西是可以让你的不同系统使用zk的时候都限定一个自己系统的chroot路径
+            // 大家避免出现重复和冲突的路径名字
             connectStringParser.getChrootPath(),
             hostProvider,
             sessionTimeout,
@@ -1035,10 +1058,30 @@ public class ZooKeeper implements AutoCloseable {
             (sessionPasswd == null ? "<null>" : "<hidden>"));
 
         this.clientConfig = clientConfig != null ? clientConfig : new ZKClientConfig();
+
+        // 解析zk机器列表
+        // 封装成一个HostProvider组件，就是每次你连接一个zk服务器
+        // 随机地提供一个机器地址给你
+
+        // 你的zk集群中有3台机器，1个Leader，2个Follower
+        // 比如你有1万个客户端要连接，此时可能3000个客户端连接Leader，3000个客户端连接Follower
+        // 还有3000个客户端连接最后一个Follower
+
+        // 如果你要是写入数据，Follower会把请求转发给Leader的，为了保证顺序一致性，必须是让所有请求都是在Leader上执行的
+        // Leader可以保证所有的请求都是有序的
         ConnectStringParser connectStringParser = new ConnectStringParser(connectString);
         this.hostProvider = hostProvider;
 
+        // ClientCnxn对象cnxn核心组件
+        // 这个组件的主要任务就是跟zk服务端进行通信
         cnxn = new ClientCnxn(
+            // connectString地址可以跟路径，ChrootPath就是该路径地址的根路径
+            // 比如connectString是192.168.1.1:2181,192.168.1.2:2181,192.168.1.3:2181/data/crm
+            // 后续所有的znode操作，都是在你指定的chroot路径下执行的
+            // 比如set /field 1
+            // 比如set /data/crm/field 1
+            // 这个东西是可以让你的不同系统使用zk的时候都限定一个自己系统的chroot路径
+            // 大家避免出现重复和冲突的路径名字
             connectStringParser.getChrootPath(),
             hostProvider,
             sessionTimeout,
